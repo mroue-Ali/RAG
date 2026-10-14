@@ -1,9 +1,11 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -75,7 +77,27 @@ def create_app(config: Config | None = None) -> FastAPI:
         # Something the person asked for that the rules do not allow. The message says why.
         return JSONResponse(status_code=400, content={"detail": str(exc)})
 
+    if config.static_dir is not None:
+        _serve_frontend(app, config.static_dir.resolve())
     return app
+
+
+def _serve_frontend(app: FastAPI, directory: Path) -> None:
+    """The built web client, behind the API routes, for a deployment with no Vite in front."""
+    # Hashed file names, so a browser may keep them for good.
+    app.mount("/assets", StaticFiles(directory=directory / "assets"), name="assets")
+    index = directory / "index.html"
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def frontend(path: str) -> FileResponse:
+        if path == "api" or path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        file = (directory / path).resolve()
+        if path and file.is_file() and file.is_relative_to(directory):
+            return FileResponse(file)
+        # Any other path is a page of the single-page app (/settings/model, /admin...).
+        # Never cached, so a new deployment is picked up on the next visit.
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
 
 app = create_app()

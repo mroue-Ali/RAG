@@ -37,6 +37,9 @@ class Config(BaseSettings):
     session_days: int = 30
     # Web client ID from Google Cloud. Sign in with Google is offered only when set.
     google_client_id: str = ""
+    # The built frontend (frontend/dist). When set, the backend serves it too, so one
+    # container answers for the whole site. In development Vite serves it instead.
+    static_dir: Path | None = None
     # Without local models, provider addresses on private networks are refused.
     # Turn this on to try that setup against a model server on your own machine.
     allow_private_urls: bool = False

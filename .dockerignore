@@ -1,0 +1,15 @@
+# Kept out of the image: secrets, local data, and things the build makes itself.
+.git
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/__pycache__
+**/*.pyc
+backend/venv
+backend/.venv
+backend/data
+backend/.pytest_cache
+frontend/dist
+.claude
+*.bat

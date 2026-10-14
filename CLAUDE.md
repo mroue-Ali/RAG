@@ -25,6 +25,7 @@ What a server can do is capability config, not a mode:
 - Those windows are Windows Terminal tabs here, so they cannot be found by window title (`taskkill /fi WINDOWTITLE`, `tasklist /v`); match the `cmd.exe` command line instead.
 - Backend: `uvicorn main:app --reload --port 8000` from backend/, using backend/venv
 - Database: Postgres 17 in Docker, `docker-compose.yml` at the root, service `db` on `127.0.0.1:5434` (user, password and db all `rag`, volume `rag-pgdata`). run.bat starts it. Leave the Windows PostgreSQL service on 5432 alone: its password is unknown and it is not this project's.
+- Deployment: the VPS runs the whole `docker-compose.yml` through webos (Ali's panel, https://webos.mroueali.com). webos layers its own override that publishes only the `web` service on a loopback port and strips every other published port, and writes `.env` next to the compose file from the root `.env.example`. `web` is the root `Dockerfile`: the frontend built into `static/` and served by FastAPI (`STATIC_DIR`) beside the API on 8000. Keep it one service on one port. run.bat only ever starts `db`.
 - To see server behaviour locally, set `LOCAL_MODELS=false` (and `OPEN_SIGNUP=true`) in backend/.env and restart
 - Frontend: `npm run dev` from frontend/, serves http://localhost:5180 and proxies /api to :8000
 - `.claude/launch.json` has `backend` and `frontend` as preview servers

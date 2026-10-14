@@ -134,22 +134,24 @@ alembic revision --autogenerate -m "what changed"
 
 ### A shared server
 
-Set these in the backend's environment:
+`docker-compose.yml` runs the whole site: `web` is one image (see `Dockerfile`) that
+serves the built frontend and the API on port 8000, and `db` is its Postgres. The `web`
+service is already set up as a shared server (`APP_ENV=production`, `LOCAL_MODELS=false`);
+the rest comes from a `.env` next to the compose file, described in `.env.example`:
 
 ```
-APP_ENV=production
-LOCAL_MODELS=false
-OPEN_SIGNUP=true
 SECRET_KEY=<a long random value, kept stable>
+RAG_DB_PASSWORD=<a long random value>
+OPEN_SIGNUP=true
 ```
 
 `SECRET_KEY` encrypts stored API keys, so the backend refuses to start in production
-without one. `GOOGLE_CLIENT_ID` turns on Sign in with Google. `backend/.env.example`
-describes every variable. Open the site yourself before anyone else does: the first visit
-is setup, and whoever does it runs the instance.
+without one. Publish `web` on a port of your choice behind a reverse proxy with HTTPS: the
+session cookie is only sent over HTTPS in production. Open the site yourself before anyone
+else does: the first visit is setup, and whoever does it runs the instance.
 
-To see how a server behaves on your own machine, set `LOCAL_MODELS=false` in
-`backend/.env` and restart the backend. `ALLOW_PRIVATE_URLS=true` then still lets an API
+To see how a server behaves on your own machine without Docker, set `LOCAL_MODELS=false`
+in `backend/.env` and restart the backend. `ALLOW_PRIVATE_URLS=true` then still lets an API
 provider point at LM Studio on localhost. Leave it off on a real deployment.
 
 ### Tests
