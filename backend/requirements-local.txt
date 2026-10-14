@@ -1,0 +1,9 @@
+# Optional: only needed to run models in-process (the "Local" provider).
+# LM Studio and OpenAI-compatible APIs work without any of this.
+#
+# For a CUDA build of torch on Windows/Linux, install it first from the PyTorch index:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+torch
+transformers
+accelerate
+bitsandbytes

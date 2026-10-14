@@ -1,0 +1,32 @@
+# rag's own services in Docker. Today that is the database, which run.bat starts
+# for development. The backend and frontend join this file when rag moves to the VPS.
+#
+#   docker compose up -d db      start it (run.bat does this)
+#   docker compose down          stop it; the data stays in the rag-pgdata volume
+#
+# The port is bound to 127.0.0.1 only: on the VPS a published port without that
+# prefix goes straight through ufw. 5432 and 5433 are taken on Ali's machine.
+
+name: rag
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rag
+      # Only reachable from this machine. Set RAG_DB_PASSWORD on a real server.
+      POSTGRES_PASSWORD: ${RAG_DB_PASSWORD:-rag}
+      POSTGRES_DB: rag
+    ports:
+      - "127.0.0.1:${RAG_DB_PORT:-5434}:5432"
+    volumes:
+      - rag-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  rag-pgdata:
