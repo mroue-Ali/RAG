@@ -2,18 +2,20 @@ import { ArrowUp, Stop } from '@phosphor-icons/react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { cn } from '../../lib/cn'
-import { useChat } from '../../state/contexts'
 
 interface ComposerProps {
   /** Why sending is off right now, shown in place of the prompt. Leave out when a model is ready. */
   blocked?: string
   model: string
-  onSend: () => void
+  /** A reply is being written: the send button becomes a stop button. */
+  streaming: boolean
+  /** Resolves to false when the message did not go through, which puts the text back. */
+  onSend: (text: string) => Promise<boolean>
+  onStop: () => void
 }
 
-export function Composer({ blocked, model, onSend }: ComposerProps) {
+export function Composer({ blocked, model, streaming, onSend, onStop }: ComposerProps) {
   const disabled = blocked !== undefined
-  const { send, stop, streaming } = useChat()
   const [text, setText] = useState('')
   const field = useRef<HTMLTextAreaElement>(null)
 
@@ -26,18 +28,19 @@ export function Composer({ blocked, model, onSend }: ComposerProps) {
   }, [text])
 
   const canSend = !disabled && !streaming && text.trim() !== ''
-  const submit = () => {
+  const submit = async () => {
     if (!canSend) return
-    send(text.trim())
+    const message = text.trim()
     setText('')
-    onSend()
+    // Unless something new has been typed in the meantime.
+    if (!(await onSend(message))) setText((current) => current || message)
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     // Enter sends; Shift+Enter breaks the line. Leave Enter alone while an IME is composing.
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault()
-      submit()
+      void submit()
     }
   }
 
@@ -66,7 +69,7 @@ export function Composer({ blocked, model, onSend }: ComposerProps) {
         {streaming ? (
           <button
             type="button"
-            onClick={stop}
+            onClick={onStop}
             aria-label="Stop generating"
             title="Stop generating"
             className="grid size-8 shrink-0 place-items-center rounded-lg bg-ink text-canvas transition-transform active:translate-y-px"

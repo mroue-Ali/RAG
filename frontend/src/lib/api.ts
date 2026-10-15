@@ -2,6 +2,8 @@ import type {
   AdminAccount,
   AppSettings,
   ChatEvent,
+  ConversationDetail,
+  ConversationInfo,
   DatabaseStatus,
   FolderPick,
   GeneralSettings,
@@ -140,16 +142,25 @@ export const api = {
       general,
       question,
     }),
+
+  conversations: () => get<ConversationInfo[]>('/conversations'),
+  conversation: (id: number) => get<ConversationDetail>(`/conversations/${id}`),
+  renameConversation: (id: number, title: string) => call<ConversationInfo>('PATCH', `/conversations/${id}`, { title }),
+  deleteConversation: (id: number) => remove(`/conversations/${id}`),
+
+  /** Ask a question and yield the reply's events. A null conversation starts a new one. */
+  ask: (conversationId: number | null, content: string, signal: AbortSignal) =>
+    streamEvents('/chat', { conversation_id: conversationId, content }, signal),
+  /** Replace the conversation's last reply with a new one. */
+  regenerate: (conversationId: number, signal: AbortSignal) =>
+    streamEvents('/chat/regenerate', { conversation_id: conversationId }, signal),
 }
 
-/** Send the conversation and yield the reply's events as they arrive. */
-export async function* streamChat(
-  messages: { role: 'user' | 'assistant'; content: string }[],
-  signal: AbortSignal,
-): AsyncGenerator<ChatEvent> {
-  const response = await send('/chat/stream', {
+/** POST `body` and yield the server-sent events of the response as they arrive. */
+async function* streamEvents(path: string, body: unknown, signal: AbortSignal): AsyncGenerator<ChatEvent> {
+  const response = await send(path, {
     method: 'POST',
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify(body),
     signal,
   })
   const reader = response.body!.pipeThrough(new TextDecoderStream()).getReader()

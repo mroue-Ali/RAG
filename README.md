@@ -30,6 +30,7 @@ Cloning the repository and running it gives you the first column with nothing to
   - **LM Studio** lists the models you have downloaded and loads or unloads them through LM Studio's own API.
   - **OpenAI-compatible API** talks to any endpoint that speaks the OpenAI chat API, hosted or self-hosted.
 - **Chat** with streaming replies, stop mid-answer, regenerate, Markdown and code rendering, per-reply token count and speed, and a fold-away view for a reasoning model's thinking.
+- **Saved conversations**, listed by date in the sidebar, renamed or deleted from their header. Every reply is stored however it ends, finished, failed or stopped, and a reply keeps streaming while you read another conversation. Each person's conversations are their own.
 - **Prompt templates** with `{{placeholders}}`, edited next to a live preview rendered by the same code path chat uses.
 - **Settings** for sampling, response length, conversation history and streaming.
 - **Accounts, users and roles**: first-run setup, adding and removing users, role changes and password resets, an admin page for superadmins, sessions in an HttpOnly cookie, and every account's data kept apart from every other's.
@@ -54,13 +55,15 @@ backend/
     config.py             environment configuration (.env)
     db.py, models.py      database connection and tables
     schemas.py            every request, response and settings shape
-    api/                  HTTP routes: auth, account, admin, settings, llm, prompt, chat, health
+    api/                  HTTP routes: auth, account, admin, settings, llm, prompt, conversations, chat, health
     services/
       auth.py             setup, sign-up, passwords, Google, sessions
       accounts.py         users inside an account, and the superadmin operations
       roles.py            roles and what each may do, in one map
       settings_store.py   per-account settings, API key encryption and redaction
       crypto.py, net.py   encryption at rest; which addresses a shared server may call
+      conversations.py    each user's saved conversations and their messages
+      chat.py             one chat turn: store the question, stream the reply, store it
       prompt.py           template rendering and message assembly
       llm/                one module per provider, and the runtime that runs them
   migrations/             Alembic migrations, applied automatically on startup
@@ -69,7 +72,7 @@ frontend/
   src/
     pages/                Chat, Settings, Admin, and the setup and sign-in page
     components/           chat, settings, layout, and shared ui pieces
-    state/                session, model, settings and chat state, held above the router
+    state/                session, model, settings and conversation state, held above the router
     lib/                  API client, types, theme, formatting
 ```
 
@@ -164,23 +167,27 @@ pytest
 ```
 
 The suite covers setup, sign-up and sign-in, sessions, what each role may do, the
-separation between accounts, the superadmin operations, what a shared server refuses, and
-a chat turn end to end against a stand-in model.
+separation between accounts, the superadmin operations, what a shared server refuses, chat
+turns end to end against a stand-in model, and saved conversations, including that nobody
+else can reach yours.
 
 ## How a message travels
 
-1. The browser posts the conversation to `POST /api/chat/stream`.
-2. The backend works out who is asking, checks that their role allows chat, and loads their account's settings.
-3. `services/prompt.py` renders the system prompt and the message template, and trims history to the configured length.
-4. The provider streams tokens back, and the route relays them as server-sent events: `start`, `delta`, `reasoning`, then `done` or `error`.
+1. The browser posts the question to `POST /api/chat`, with the id of the conversation it belongs to, or without one to start a new conversation.
+2. The backend works out who is asking, checks that their role allows chat and that the conversation is theirs, and loads their account's settings. It takes hold of the model; one that is not ready refuses the request before anything is stored.
+3. `services/chat.py` stores the question and collects the earlier exchanges of the conversation.
+4. `services/prompt.py` renders the system prompt and the message template, and trims that history to the configured length.
+5. The provider streams tokens back, relayed as server-sent events: `start` with the stored question, `delta` and `reasoning` as the model writes, then `done` with the stored reply.
+6. The reply is stored however the turn ends: complete, failed with the reason, or cut short because the person stopped it or closed the page.
 
-The server keeps no conversation state.
+Retrieval will slot in at step 3: find what the question needs in your documents and hand it to the prompt.
 
 ## What an instance protects
 
 - **Passwords** are hashed with Argon2. **Session tokens** are random, live in an HttpOnly cookie, and only their hash is stored. Changing or resetting a password signs that user out everywhere else.
 - **Roles are checked on the server.** Every route asks for a permission, and the UI only hides what the server would refuse anyway.
 - **Accounts are kept apart.** Settings belong to an account, and a user in another account cannot be seen or changed, only reported missing.
+- **Conversations are personal.** Not even the owner of the same account can list, read or change another user's conversations.
 - **API keys** are encrypted at rest and never sent back to the browser, which only learns whether one is set.
 - **Private addresses are refused** on a server without local models. People there choose the address the server calls, so anything that resolves to a loopback, private or link-local address is rejected, and redirects are not followed.
 

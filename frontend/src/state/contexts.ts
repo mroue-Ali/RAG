@@ -1,5 +1,5 @@
 import { createContext, use } from 'react'
-import type { AppSettings, LLMState, Permission, SessionInfo } from '../lib/types'
+import type { AppSettings, ConversationInfo, LLMState, MessageInfo, Permission, SessionInfo } from '../lib/types'
 
 // --- Session -------------------------------------------------------------------
 
@@ -52,41 +52,59 @@ export interface SettingsContextValue {
 
 export const SettingsContext = createContext<SettingsContextValue | null>(null)
 
-// --- Chat ----------------------------------------------------------------------
+// --- Conversations -------------------------------------------------------------
 
-export interface MessageStats {
-  finishReason: string | null
-  completionTokens: number | null
-  seconds: number
-  generationSeconds: number | null
-}
-
-export interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  /** Thinking tokens the server reported separately from the answer. */
-  reasoning?: string
-  model?: string
-  /** Still being generated. */
+/** A message as the chat shows it: a stored one, or one still on its way. */
+export interface Message extends Omit<MessageInfo, 'id' | 'provider' | 'created_at'> {
+  /** For React. It stays the same when the server's copy replaces a message still on its way. */
+  key: string
+  /** The stored id. null until the server has stored the message. */
+  id: number | null
+  /** The reply is still being written. */
   pending?: boolean
-  /** Cut short by the user. */
-  stopped?: boolean
-  error?: string
-  stats?: MessageStats
 }
 
-export interface ChatContextValue {
+/** One conversation's messages and what is happening to them. */
+export interface Thread {
   messages: Message[]
+  /** A reply is being written. */
   streaming: boolean
-  send: (text: string) => void
-  stop: () => void
-  /** Throw away the last reply and ask again. */
-  regenerate: () => void
-  clear: () => void
+  /** The stored messages are being fetched. */
+  loading: boolean
+  /** Why they could not be fetched. */
+  error: string | null
+  /** Why the last question did not go through. Nothing was stored. */
+  notSent: string | null
 }
 
-export const ChatContext = createContext<ChatContextValue | null>(null)
+export interface ConversationsContextValue {
+  /** The signed-in user's conversations, most recent activity first. null until loaded. */
+  list: ConversationInfo[] | null
+  /** Every thread opened so far, by threadKey. Read one with useThread. */
+  threads: Record<string, Thread>
+  /** Fetch a saved conversation's messages, unless they are here already. */
+  open: (id: number) => void
+  /**
+   * Ask a question in a conversation, or start one with it (id null). Resolves
+   * to the conversation's id as soon as the server has stored the question, or
+   * to null when it was not sent; the thread's `notSent` then says why.
+   */
+  send: (id: number | null, text: string) => Promise<number | null>
+  /** Throw away `reply`, the conversation's last, and ask again. */
+  regenerate: (id: number, reply: Message) => void
+  /** Stop the reply being written in this conversation. What came so far is kept. */
+  stop: (id: number | null) => void
+  /** These reject with a message fit to show. */
+  rename: (id: number, title: string) => Promise<void>
+  remove: (id: number) => Promise<void>
+}
+
+export const ConversationsContext = createContext<ConversationsContextValue | null>(null)
+
+/** Where a thread is kept: its conversation's id, or "new" for the conversation being started. */
+export const threadKey = (id: number | null) => (id === null ? 'new' : String(id))
+
+export const EMPTY_THREAD: Thread = { messages: [], streaming: false, loading: false, error: null, notSent: null }
 
 // --- Hooks ---------------------------------------------------------------------
 
@@ -100,4 +118,10 @@ export const useAuth = () => required(use(AuthContext), 'AuthProvider')
 export const useCan = (permission: Permission) => useAuth().session.permissions.includes(permission)
 export const useModel = () => required(use(ModelContext), 'ModelProvider')
 export const useSettings = () => required(use(SettingsContext), 'SettingsProvider')
-export const useChat = () => required(use(ChatContext), 'ChatProvider')
+export const useConversations = () => required(use(ConversationsContext), 'ConversationsProvider')
+
+/** A conversation's thread, or the new one's (id null). undefined for a saved conversation not opened yet. */
+export function useThread(id: number | null): Thread | undefined {
+  const { threads } = useConversations()
+  return threads[threadKey(id)] ?? (id === null ? EMPTY_THREAD : undefined)
+}

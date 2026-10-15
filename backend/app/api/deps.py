@@ -4,10 +4,10 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..config import Config
-from ..db import get_session
-from ..models import Account, User
+from ..db import Database, get_session
+from ..models import Account, Conversation, User
 from ..schemas import AppSettings
-from ..services import auth, roles
+from ..services import auth, conversations, roles
 from ..services.llm import Runtime
 from ..services.roles import Permission
 from ..services.settings_store import SettingsStore
@@ -15,6 +15,11 @@ from ..services.settings_store import SettingsStore
 
 def get_config(request: Request) -> Config:
     return request.app.state.config
+
+
+def get_database(request: Request) -> Database:
+    """For work that outlives the request's own session, such as storing a streamed reply."""
+    return request.app.state.db
 
 
 def get_runtime(request: Request) -> Runtime:
@@ -27,6 +32,7 @@ def get_store(request: Request) -> SettingsStore:
 
 SessionDep = Annotated[Session, Depends(get_session)]
 ConfigDep = Annotated[Config, Depends(get_config)]
+DatabaseDep = Annotated[Database, Depends(get_database)]
 RuntimeDep = Annotated[Runtime, Depends(get_runtime)]
 StoreDep = Annotated[SettingsStore, Depends(get_store)]
 
@@ -85,3 +91,19 @@ def get_settings(session: SessionDep, user: UserDep, store: StoreDep) -> AppSett
 
 
 SettingsDep = Annotated[AppSettings, Depends(get_settings)]
+
+
+def find_conversation(session: Session, user: User, conversation_id: int) -> Conversation:
+    """The user's own conversation with this id, or a 404."""
+    try:
+        return conversations.get(session, user, conversation_id)
+    except conversations.NotFound as exc:
+        raise HTTPException(status_code=404, detail="No such conversation.") from exc
+
+
+def get_conversation(conversation_id: int, user: UserDep, session: SessionDep) -> Conversation:
+    """The conversation named in the path, for routes under /conversations/{conversation_id}."""
+    return find_conversation(session, user, conversation_id)
+
+
+ConversationDep = Annotated[Conversation, Depends(get_conversation)]

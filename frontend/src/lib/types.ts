@@ -187,16 +187,52 @@ export interface Health {
   database: DatabaseStatus
 }
 
+// --- Conversations and chat ----------------------------------------------------
+
+export type MessageRole = 'user' | 'assistant'
+/** How a reply ended: answered in full, cut short by the person asking, or failed (`error` says why). */
+export type MessageStatus = 'complete' | 'stopped' | 'error'
+
+export interface MessageStats {
+  finish_reason: string | null
+  prompt_tokens: number | null
+  completion_tokens: number | null
+  /** From asking to the last token. */
+  seconds: number
+  /** Without the wait for the first token, for a fair tokens per second. */
+  generation_seconds: number | null
+}
+
+export interface MessageInfo {
+  id: number
+  role: MessageRole
+  content: string
+  /** The rest describe a reply. A question has them empty. */
+  reasoning: string
+  status: MessageStatus
+  error: string | null
+  provider: ProviderKind | null
+  model: string | null
+  stats: MessageStats | null
+  created_at: string
+}
+
+/** A conversation as the list shows it. */
+export interface ConversationInfo {
+  id: number
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ConversationDetail extends ConversationInfo {
+  messages: MessageInfo[]
+}
+
+/** What a reply streams as: start, then delta and reasoning as the model writes, then done. */
 export type ChatEvent =
-  | { type: 'start'; provider: ProviderKind; model: string }
+  | { type: 'start'; conversation: ConversationInfo; question: MessageInfo; provider: ProviderKind; model: string }
   | { type: 'delta'; content: string }
   | { type: 'reasoning'; content: string }
-  | {
-      type: 'done'
-      finish_reason: string | null
-      prompt_tokens: number | null
-      completion_tokens: number | null
-      seconds: number
-      generation_seconds: number | null
-    }
-  | { type: 'error'; message: string }
+  /** reply is null only when the conversation was deleted while the reply was being written. */
+  | { type: 'done'; reply: MessageInfo | null }

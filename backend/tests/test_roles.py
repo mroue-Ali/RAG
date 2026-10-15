@@ -63,7 +63,7 @@ def test_a_member_can_chat_but_not_change_anything(member, method, path):
 
 def test_a_member_still_reaches_chat(member):
     # Refused for having no model loaded, not for the role.
-    reply = member.post("/api/chat/stream", json={"messages": [{"role": "user", "content": "hi"}]})
+    reply = member.post("/api/chat", json={"content": "hi"})
     assert reply.status_code == 409
 
 

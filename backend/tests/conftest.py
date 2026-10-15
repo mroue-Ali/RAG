@@ -56,6 +56,18 @@ def server(make_app) -> FastAPI:
     return app
 
 
+@pytest.fixture
+def fake(monkeypatch):
+    """Whatever model the settings ask for, a stand-in answers instead (FakeProvider in tests/chatting.py)."""
+    from app.services.llm import registry
+
+    from .chatting import FakeProvider  # here, because chatting.py imports from this file
+
+    provider = FakeProvider()
+    monkeypatch.setattr(registry, "create_provider", lambda llm, follow_redirects=True: provider)
+    return provider
+
+
 def browser(app: FastAPI) -> TestClient:
     """A separate visitor: its own cookie jar against the same running app."""
     return TestClient(app)

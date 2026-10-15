@@ -98,6 +98,6 @@ def test_an_api_on_this_machine_may_be_used(owner):
 def test_nothing_is_loaded_until_asked(owner):
     assert owner.get("/api/llm/status").json()["status"] == "unloaded"
 
-    reply = owner.post("/api/chat/stream", json={"messages": [{"role": "user", "content": "hi"}]})
+    reply = owner.post("/api/chat", json={"content": "hi"})
     assert reply.status_code == 409
     assert "No model is loaded" in reply.json()["detail"]

@@ -27,7 +27,12 @@ PROTECTED = [
     ("post", "/api/llm/models"),
     ("get", "/api/prompt/variables"),
     ("post", "/api/prompt/preview"),
-    ("post", "/api/chat/stream"),
+    ("get", "/api/conversations"),
+    ("get", "/api/conversations/1"),
+    ("patch", "/api/conversations/1"),
+    ("delete", "/api/conversations/1"),
+    ("post", "/api/chat"),
+    ("post", "/api/chat/regenerate"),
 ]
 
 

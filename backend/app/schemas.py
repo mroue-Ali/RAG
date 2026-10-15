@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 ProviderKind = Literal["lmstudio", "openai", "transformers"]
 # Inside an account. What each may do is in app.services.roles.
@@ -151,16 +151,112 @@ class PromptPreview(BaseModel):
     unknown: list[str]
 
 
+# --- Conversations ------------------------------------------------------------
+
+MessageRole = Literal["user", "assistant"]
+# How a reply ended: answered in full, cut short by the person asking, or failed
+# (`error` says why). A question is always complete.
+MessageStatus = Literal["complete", "stopped", "error"]
+
+# Leading and trailing whitespace is dropped, and what is left may not be empty.
+Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+QuestionText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=32_000)]
+
+
+class MessageStats(BaseModel):
+    finish_reason: str | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    # From asking to the last token.
+    seconds: float
+    # Without the wait for the first token, for a fair tokens per second.
+    generation_seconds: float | None = None
+
+
+class MessageInfo(BaseModel):
+    id: int
+    role: MessageRole
+    content: str
+    # The rest describe a reply. A question has them empty.
+    reasoning: str = ""
+    status: MessageStatus = "complete"
+    error: str | None = None
+    provider: ProviderKind | None = None
+    model: str | None = None
+    stats: MessageStats | None = None
+    created_at: datetime
+
+
+class ConversationInfo(BaseModel):
+    """A conversation as the list shows it."""
+
+    id: int
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationDetail(ConversationInfo):
+    messages: list[MessageInfo]
+
+
+class ConversationUpdate(BaseModel):
+    title: Title
+
+
 # --- Chat ---------------------------------------------------------------------
 
 
 class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"]
+    """A message as the model sees it."""
+
+    role: MessageRole
     content: str
 
 
-class ChatRequest(BaseModel):
-    messages: list[ChatMessage] = Field(min_length=1)
+class AskRequest(BaseModel):
+    # None starts a new conversation, titled after this question.
+    conversation_id: int | None = None
+    content: QuestionText
+
+
+class RegenerateRequest(BaseModel):
+    conversation_id: int
+
+
+# A reply streams as server-sent events, each one of these as JSON:
+# start, then delta and reasoning as the model writes, then done.
+
+
+class StartEvent(BaseModel):
+    """The question is stored and the model has started on the reply."""
+
+    type: Literal["start"] = "start"
+    conversation: ConversationInfo
+    question: MessageInfo
+    provider: ProviderKind
+    model: str
+
+
+class TextEvent(BaseModel):
+    """The next piece of the answer (delta) or of the model's thinking (reasoning)."""
+
+    type: Literal["delta", "reasoning"]
+    content: str
+
+
+class DoneEvent(BaseModel):
+    """The reply is over and stored. One that failed is stored too, with status "error".
+
+    `reply` is None only when the conversation was deleted while the reply was
+    being written, which leaves nowhere to store it.
+    """
+
+    type: Literal["done"] = "done"
+    reply: MessageInfo | None
+
+
+ChatEvent = StartEvent | TextEvent | DoneEvent
 
 
 # --- Accounts and users -------------------------------------------------------

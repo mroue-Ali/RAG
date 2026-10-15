@@ -5,7 +5,7 @@ import { AuthPage } from './pages/AuthPage'
 import { ChatPage } from './pages/ChatPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AuthProvider } from './state/AuthProvider'
-import { ChatProvider } from './state/ChatProvider'
+import { ConversationsProvider } from './state/ConversationsProvider'
 import { ModelProvider } from './state/ModelProvider'
 import { SettingsProvider } from './state/SettingsProvider'
 import { useAuth } from './state/contexts'
@@ -26,20 +26,22 @@ function Workspace() {
   if (!session.user) return <AuthPage />
 
   return (
-    // Above the routes on purpose: model state, settings edits and the conversation
-    // survive navigation. Keyed by user, so signing in as someone else starts clean.
+    // Above the routes on purpose: model state, settings edits and conversations, a reply
+    // still streaming among them, survive navigation. Keyed by user, so signing in as
+    // someone else starts clean.
     <ModelProvider key={session.user.id}>
       <SettingsProvider>
-        <ChatProvider>
+        <ConversationsProvider>
           <Routes>
             <Route element={<AppShell />}>
               <Route index element={<ChatPage />} />
+              <Route path="c/:conversationId" element={<ChatPage />} />
               <Route path="settings/:section?" element={<SettingsPage />} />
               <Route path="admin" element={<AdminPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
-        </ChatProvider>
+        </ConversationsProvider>
       </SettingsProvider>
     </ModelProvider>
   )

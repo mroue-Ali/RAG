@@ -26,9 +26,20 @@ export function AppShell() {
 /** The strip at the top of each page: its title on the left, its actions on the right. */
 export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
   return (
+    <HeaderBar>
+      <h1 className="min-w-0 truncate text-[15px] font-semibold tracking-tight" title={title}>
+        {title}
+      </h1>
+      {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
+    </HeaderBar>
+  )
+}
+
+/** The bare strip, for a page whose header is sometimes more than a title, such as a title being renamed. */
+export function HeaderBar({ children }: { children: ReactNode }) {
+  return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-line px-4 md:px-6">
-      <h1 className="text-[15px] font-semibold tracking-tight">{title}</h1>
-      {children && <div className="flex items-center gap-2">{children}</div>}
+      {children}
     </header>
   )
 }

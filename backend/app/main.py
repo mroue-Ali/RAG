@@ -17,6 +17,7 @@ from .schemas import LLMSettings
 from .services import auth
 from .services.accounts import AccountError
 from .services.auth import AuthError
+from .services.conversations import ConversationError
 from .services.crypto import Cipher
 from .services.llm import LOCAL_PROVIDERS, LLMError, Runtime
 from .services.settings_store import SettingsStore
@@ -73,6 +74,7 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     @app.exception_handler(AuthError)
     @app.exception_handler(AccountError)
+    @app.exception_handler(ConversationError)
     async def refused(request: Request, exc: Exception) -> JSONResponse:
         # Something the person asked for that the rules do not allow. The message says why.
         return JSONResponse(status_code=400, content={"detail": str(exc)})

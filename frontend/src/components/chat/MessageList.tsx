@@ -1,20 +1,36 @@
 import { ArrowsClockwise, CaretRight, Warning } from '@phosphor-icons/react'
 import { formatSeconds } from '../../lib/format'
 import { splitThinking } from '../../lib/thinking'
-import { useChat, useSettings } from '../../state/contexts'
-import type { Message, MessageStats } from '../../state/contexts'
+import type { MessageStats } from '../../lib/types'
+import { useSettings } from '../../state/contexts'
+import type { Message } from '../../state/contexts'
 import { IconButton } from '../ui/Button'
 import { CopyButton } from '../ui/CopyButton'
 import { Markdown } from './Markdown'
 
-export function MessageList({ messages }: { messages: Message[] }) {
+interface MessageListProps {
+  messages: Message[]
+  /** A reply is being written somewhere in this conversation. */
+  streaming: boolean
+  /** Ask for the last reply again. Leave out where that is not possible. */
+  onRegenerate?: (reply: Message) => void
+}
+
+export function MessageList({ messages, streaming, onRegenerate }: MessageListProps) {
   return (
     <div className="flex flex-col gap-8">
       {messages.map((message, index) =>
         message.role === 'user' ? (
-          <UserMessage key={message.id} message={message} />
+          <UserMessage key={message.key} message={message} />
         ) : (
-          <AssistantMessage key={message.id} message={message} last={index === messages.length - 1} />
+          <AssistantMessage
+            key={message.key}
+            message={message}
+            // Only the last reply can be asked for again, and not while one is being written.
+            onRegenerate={
+              onRegenerate && index === messages.length - 1 && !streaming ? () => onRegenerate(message) : undefined
+            }
+          />
         ),
       )}
     </div>
@@ -33,15 +49,14 @@ function UserMessage({ message }: { message: Message }) {
   )
 }
 
-function AssistantMessage({ message, last }: { message: Message; last: boolean }) {
+function AssistantMessage({ message, onRegenerate }: { message: Message; onRegenerate?: () => void }) {
   const { saved } = useSettings()
-  const { regenerate, streaming } = useChat()
 
   const inline = splitThinking(message.content)
   const reasoning = [message.reasoning, inline.reasoning].filter(Boolean).join('\n\n')
   const answer = inline.answer
   const waiting = Boolean(message.pending) && !answer
-  const empty = !message.pending && !answer && !message.error && !message.stopped
+  const empty = !message.pending && !answer && !message.error && message.status !== 'stopped'
 
   return (
     <article className="flex flex-col gap-2">
@@ -64,8 +79,8 @@ function AssistantMessage({ message, last }: { message: Message; last: boolean }
       {!message.pending && (
         <footer className="-ml-2 flex min-h-8 flex-wrap items-center gap-x-1 gap-y-1">
           {answer && <CopyButton text={answer} label="Copy reply" />}
-          {last && !streaming && (
-            <IconButton label="Regenerate" onClick={regenerate}>
+          {onRegenerate && (
+            <IconButton label="Regenerate" onClick={onRegenerate}>
               <ArrowsClockwise size={15} />
             </IconButton>
           )}
@@ -92,7 +107,7 @@ function Reasoning({ text, active }: { text: string; active: boolean }) {
 
 function Meta({ message }: { message: Message }) {
   const parts = [message.model, ...(message.stats ? describe(message.stats) : [])]
-  if (message.stopped) parts.push('stopped')
+  if (message.status === 'stopped') parts.push('stopped')
   return (
     <p className="ml-2 flex flex-wrap gap-x-3 font-mono text-xs text-ink-faint">
       {parts.filter(Boolean).map((part) => (
@@ -104,14 +119,14 @@ function Meta({ message }: { message: Message }) {
 
 function describe(stats: MessageStats): string[] {
   const parts: string[] = []
-  if (stats.completionTokens) {
-    parts.push(`${stats.completionTokens} tokens`)
+  if (stats.completion_tokens) {
+    parts.push(`${stats.completion_tokens} tokens`)
     // Too short a burst gives a meaningless rate.
-    if (stats.generationSeconds && stats.generationSeconds >= 0.2) {
-      parts.push(`${Math.round(stats.completionTokens / stats.generationSeconds)} tok/s`)
+    if (stats.generation_seconds && stats.generation_seconds >= 0.2) {
+      parts.push(`${Math.round(stats.completion_tokens / stats.generation_seconds)} tok/s`)
     }
   }
   parts.push(formatSeconds(stats.seconds))
-  if (stats.finishReason === 'length') parts.push('cut off at the length limit')
+  if (stats.finish_reason === 'length') parts.push('cut off at the length limit')
   return parts
 }

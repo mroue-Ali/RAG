@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from . import account, admin, auth, chat, health, llm, prompt, settings
+from . import account, admin, auth, chat, conversations, health, llm, prompt, settings
 
 router = APIRouter(prefix="/api")
 router.include_router(health.router)
@@ -10,4 +10,5 @@ router.include_router(admin.router)
 router.include_router(settings.router)
 router.include_router(llm.router)
 router.include_router(prompt.router)
+router.include_router(conversations.router)
 router.include_router(chat.router)

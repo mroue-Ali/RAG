@@ -13,7 +13,7 @@ from ..schemas import Role
 
 
 class Permission(StrEnum):
-    # Talk to the account's model.
+    # Talk to the account's model, and keep your own conversations with it.
     CHAT = "chat"
     # Change the account's model, prompt and generation settings; load and unload models.
     MANAGE_MODEL = "model.manage"

@@ -1,7 +1,7 @@
 # rag
 
 Personal knowledge base RAG system. The core exists (accounts, settings, model
-loading, chat); retrieval over documents is not built yet.
+loading, chat with saved conversations); retrieval over documents is not built yet.
 
 ## Layout
 - backend/  - FastAPI API (PostgreSQL, settings in backend/.env)
@@ -37,6 +37,8 @@ What a server can do is capability config, not a mode:
 - A new table that holds data needs an `account_id` (ON DELETE CASCADE), and its queries must filter on the signed-in user's account. Data that is personal to a user (profile, later their own conversations) takes a `user_id` instead.
 - Account settings are `AppSettings`, one row per account and section, read and written only through `SettingsStore`, which encrypts the API key. The user's own name is `User.display_name`, which fills `{{user_name}}`. Env config (`app/config.py`) is separate.
 - Rules about who may change which user (owner untouchable, no changing your own role) live in `services/accounts.py`, not in routes.
+- Conversations are personal (`user_id`). `services/conversations.py` stores and finds them and is the only place that queries them; someone else's is reported missing (`find_conversation` in `api/deps.py` turns that into a 404). Routes: `api/conversations.py` for the history, `api/chat.py` for asking.
+- A chat turn is `services/chat.py`: `ask` or `regenerate` stores the question and builds a `Turn`, then `answer` streams events and stores the reply however it ends (complete, error, stopped). Retrieval belongs between the two. The events are `StartEvent`, `TextEvent` and `DoneEvent` in `schemas.py`.
 - Model providers live in `app/services/llm/`, one module each, behind `LLMProvider` in `base.py`. A new provider needs a module, a branch in `registry.py`, a `ProviderKind` entry, a place in `PROVIDER_ORDER`, and a decision on whether it is local (in `LOCAL_PROVIDERS`).
 - Raise `LLMError` for anything the user should read (becomes a 409), `AuthError` for sign-in problems and `AccountError` for refused user management (both a 400). A missing or permission-refused request is an `HTTPException` 404 or 403.
 - torch and transformers are optional (`requirements-local.txt`) and must only be imported inside functions in `transformers_local.py`.
@@ -48,6 +50,7 @@ What a server can do is capability config, not a mode:
 - Tailwind 4. Colors come only from the tokens in `src/index.css` (canvas, surface, sunken, raised, line, ink, accent, danger, warn); the dark theme is a second set of values for the same names.
 - Shared controls in `components/ui/` set no width or font size, because callers pass those. Do not pass a utility that fights one the component already sets; add a variant instead. For a link that should look like a button, use `buttonClass`.
 - State lives in `src/state/` providers above the router so it survives navigation. `AuthProvider` is outermost; the rest mount only once someone is signed in.
+- `ConversationsProvider` holds the conversation list and one thread per conversation opened, keyed by `threadKey` ("new" for the one being started, until the server gives it an id). Read one with `useThread(id)`. `/` is a new chat, `/c/:conversationId` a saved one.
 - Shape the UI by permission with `useCan('model.manage')` etc., never by role name. Settings sections declare who sees them in `SECTIONS` in `pages/SettingsPage.tsx`.
 - Icons: `@phosphor-icons/react` only. Fonts: Geist and Geist Mono, self-hosted through fontsource.
 - UI copy uses plain sentences and no em dashes.
